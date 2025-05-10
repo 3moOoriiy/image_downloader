@@ -4,22 +4,22 @@ import zipfile
 from io import BytesIO
 from PIL import Image
 
-st.set_page_config(page_title="تحميل الصور من روابط", layout="centered")
+st.set_page_config(page_title="Image Downloader from URLs", layout="centered")
 
-st.title("🖼️ أداة تحميل الصور من روابط")
-st.write("قم بلصق روابط الصور (كل رابط في سطر) أو ارفع ملف .txt يحتوي على الروابط.")
+st.title("🖼️ Image Downloader from URLs")
+st.write("Paste image URLs (one per line) or upload a .txt file containing the URLs.")
 
-# إدخال الروابط يدويًا أو من ملف
-urls_text = st.text_area("📋 الصق روابط الصور هنا:")
+# Input area for URLs or uploading a file
+urls_text = st.text_area("📋 Paste image URLs here:")
 
-uploaded_file = st.file_uploader("📁 أو ارفع ملف نصي يحتوي على روابط", type=["txt"])
+uploaded_file = st.file_uploader("📁 Or upload a .txt file with image URLs", type=["txt"])
 
 if uploaded_file is not None:
     urls_text = uploaded_file.read().decode("utf-8")
 
-if st.button("🚀 تحميل الصور وتحويلها إلى JPG وضغطها"):
+if st.button("🚀 Download and Convert Images to JPG (ZIP)"):
     if not urls_text.strip():
-        st.warning("الرجاء إدخال روابط الصور أولاً.")
+        st.warning("Please enter image URLs first.")
     else:
         image_urls = [url.strip() for url in urls_text.strip().splitlines() if url.strip()]
         zip_buffer = BytesIO()
@@ -32,9 +32,9 @@ if st.button("🚀 تحميل الصور وتحويلها إلى JPG وضغطه�
                     }
                     response = requests.get(url, headers=headers, timeout=20)
                     if response.status_code == 200:
-                        # فتح الصورة ودعم الشفافية
+                        # Open image and support transparency
                         image = Image.open(BytesIO(response.content)).convert("RGBA")
-                        bg = Image.new("RGB", image.size, (255, 255, 255))  # خلفية بيضاء
+                        bg = Image.new("RGB", image.size, (255, 255, 255))  # white background
                         image = Image.alpha_composite(bg.convert("RGBA"), image).convert("RGB")
 
                         img_bytes = BytesIO()
@@ -43,13 +43,13 @@ if st.button("🚀 تحميل الصور وتحويلها إلى JPG وضغطه�
 
                         zip_file.writestr(f"image_{i+1}.jpg", img_bytes.read())
                     else:
-                        st.error(f"❌ فشل تحميل الصورة رقم {i+1} (رمز الحالة: {response.status_code})")
+                        st.error(f"❌ Failed to download image #{i+1} (status code: {response.status_code})")
                 except Exception as e:
-                    st.error(f"⚠️ خطأ في تحميل الصورة رقم {i+1}: {e}")
+                    st.error(f"⚠️ Error downloading image #{i+1}: {e}")
 
-        st.success("✅ تم تحميل الصور وتحويلها إلى JPG بخلفية بيضاء وضغطها!")
+        st.success("✅ Images downloaded, converted to JPG with white background, and zipped successfully!")
         st.download_button(
-            label="📦 تحميل ملف ZIP",
+            label="📦 Download ZIP file",
             data=zip_buffer.getvalue(),
             file_name="downloaded_images_jpg.zip",
             mime="application/zip"
