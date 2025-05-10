@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import os
 import zipfile
 from io import BytesIO
 from PIL import Image
@@ -31,19 +30,24 @@ if st.button("🚀 تحميل الصور وتحويلها إلى JPG وضغطه�
                     headers = {
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
                     }
-                    response = requests.get(url, headers=headers, timeout=15)
+                    response = requests.get(url, headers=headers, timeout=20)
                     if response.status_code == 200:
-                        image = Image.open(BytesIO(response.content)).convert("RGB")
+                        # فتح الصورة ودعم الشفافية
+                        image = Image.open(BytesIO(response.content)).convert("RGBA")
+                        bg = Image.new("RGB", image.size, (255, 255, 255))  # خلفية بيضاء
+                        image = Image.alpha_composite(bg.convert("RGBA"), image).convert("RGB")
+
                         img_bytes = BytesIO()
-                        image.save(img_bytes, format="JPEG")
+                        image.save(img_bytes, format="JPEG", quality=95)
                         img_bytes.seek(0)
+
                         zip_file.writestr(f"image_{i+1}.jpg", img_bytes.read())
                     else:
                         st.error(f"❌ فشل تحميل الصورة رقم {i+1} (رمز الحالة: {response.status_code})")
                 except Exception as e:
                     st.error(f"⚠️ خطأ في تحميل الصورة رقم {i+1}: {e}")
 
-        st.success("✅ تم تحميل الصور وتحويلها إلى JPG وضغطها!")
+        st.success("✅ تم تحميل الصور وتحويلها إلى JPG بخلفية بيضاء وضغطها!")
         st.download_button(
             label="📦 تحميل ملف ZIP",
             data=zip_buffer.getvalue(),
