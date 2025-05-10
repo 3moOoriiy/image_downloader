@@ -22,14 +22,21 @@ if st.button("📥 جلب الصور"):
 
         for i, url in enumerate(image_urls):
             try:
-                headers = {"User-Agent": "Mozilla/5.0"}
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.google.com",
+                    "DNT": "1",
+                    "Connection": "keep-alive",
+                }
+
                 response = requests.get(url, headers=headers, timeout=15)
 
                 if response.status_code == 200:
                     image = Image.open(BytesIO(response.content)).convert("RGB")
                     st.image(image, caption=f"الصورة رقم {i+1}", use_column_width=True)
 
-                    # حفظ الصورة مؤقتًا بصيغة JPG
                     img_buffer = BytesIO()
                     image.save(img_buffer, format="JPEG")
                     img_buffer.seek(0)
@@ -43,4 +50,4 @@ if st.button("📥 جلب الصور"):
                 else:
                     st.error(f"❌ فشل تحميل الصورة {i+1} - الحالة: {response.status_code}")
             except Exception as e:
-                st.error(f"⚠️ خطأ في تحميل الصورة {i+1}: {e}")
+                st.error(f"⚠️ خطأ في تحميل الصورة رقم {i+1}: {e}")
