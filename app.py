@@ -29,12 +29,15 @@ if st.button("🚀 تحميل الصور وضغطها"):
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
             for i, url in enumerate(image_urls):
                 try:
-                    response = requests.get(url, timeout=10)
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                    }
+                    response = requests.get(url, headers=headers, timeout=15)
                     if response.status_code == 200:
                         filename = f"image_{i+1}.webp"
                         zip_file.writestr(filename, response.content)
                     else:
-                        st.error(f"❌ فشل تحميل الصورة رقم {i+1}")
+                        st.error(f"❌ فشل تحميل الصورة رقم {i+1} (رمز الحالة: {response.status_code})")
                 except Exception as e:
                     st.error(f"⚠️ خطأ في تحميل الصورة رقم {i+1}: {e}")
 
