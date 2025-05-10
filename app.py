@@ -1,50 +1,136 @@
 import streamlit as st
 import requests
-import os
-import zipfile
+from PIL import Image
 from io import BytesIO
+import zipfile
+import tempfile
+import os
+import time
 
-st.set_page_config(page_title="تحميل الصور من روابط", layout="centered")
+# Set page configuration
+st.set_page_config(
+    page_title="تحميل الصور JPG/ZIP",
+    layout="centered",
+    page_icon="🖼️"
+)
 
-st.title("🖼️ أداة تحميل الصور من روابط")
-st.write("قم بلصق روابط الصور (كل رابط في سطر) أو ارفع ملف .txt يحتوي على الروابط.")
+# تعيين وقت أطول للطلبات
+timeout_seconds = 30
 
-# إدخال الروابط يدويًا أو من ملف
+# App title and description
+st.title("🖼️ تحميل الصور مباشرة بصيغة JPG/ZIP")
+st.write("الصق روابط الصور أو ارفع ملف .txt يحتوي على الروابط (كل سطر = رابط).")
+
+# Input options
 urls_text = st.text_area("📋 الصق روابط الصور هنا:")
+uploaded_file = st.file_uploader("📁 أو ارفع ملف روابط", type=["txt"])
 
-uploaded_file = st.file_uploader("📁 أو ارفع ملف نصي يحتوي على روابط", type=["txt"])
+# خيارات متقدمة
+with st.expander("⚙️ إعدادات متقدمة"):
+    col1, col2 = st.columns(2)
+    with col1:
+        timeout_seconds = st.slider("⏱️ وقت انتظار التحميل (ثوانٍ)", min_value=10, max_value=120, value=30)
+    with col2:
+        max_retries = st.slider("🔄 عدد محاولات إعادة الاتصال", min_value=1, max_value=5, value=3)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        download_format = st.radio("📦 صيغة التحميل:", ["فردي (JPG)", "مضغوط (ZIP)"], index=0)
+    with col2:
+        image_quality = st.slider("🔍 جودة الصور (JPG)", min_value=1, max_value=100, value=95)
 
-# تحميل الروابط من الملف إذا تم رفعه
+# Load URLs from uploaded file
 if uploaded_file is not None:
     urls_text = uploaded_file.read().decode("utf-8")
 
-# زر التنفيذ
-if st.button("🚀 تحميل الصور وضغطها"):
+# Download button
+if st.button("📥 جلب الصور"):
     if not urls_text.strip():
-        st.warning("الرجاء إدخال روابط الصور أولاً.")
+        st.warning("الرجاء إدخال روابط أولًا.")
     else:
         image_urls = [url.strip() for url in urls_text.strip().splitlines() if url.strip()]
-        zip_buffer = BytesIO()
-
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for i, url in enumerate(image_urls):
-                try:
-                    headers = {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                    }
-                    response = requests.get(url, headers=headers, timeout=15)
-                    if response.status_code == 200:
-                        filename = f"image_{i+1}.webp"
-                        zip_file.writestr(filename, response.content)
-                    else:
-                        st.error(f"❌ فشل تحميل الصورة رقم {i+1} (رمز الحالة: {response.status_code})")
-                except Exception as e:
-                    st.error(f"⚠️ خطأ في تحميل الصورة رقم {i+1}: {e}")
-
-        st.success("✅ تم تحميل الصور وضغطها!")
-        st.download_button(
-            label="📦 تحميل ملف ZIP",
-            data=zip_buffer.getvalue(),
-            file_name="downloaded_images.zip",
-            mime="application/zip"
-        )
+        
+        # Progress bar
+        progress_bar = st.progress(0)
+        total_images = len(image_urls)
+        st.info(f"🔍 جاري محاولة تحميل {total_images} صورة...")
+        
+        # للتحميل المضغوط ZIP
+        if download_format == "مضغوط (ZIP)" and total_images > 0:
+            # إنشاء ملف مؤقت للـ ZIP
+            temp_dir = tempfile.mkdtemp()
+            zip_path = os.path.join(temp_dir, "images.zip")
+            
+            with zipfile.ZipFile(zip_path, 'w') as zip_file:
+                # لتخزين حالة نجاح تحميل الصور
+                successful_downloads = 0
+                
+                for i, url in enumerate(image_urls):
+            try:
+                # Update progress
+                progress_bar.progress((i + 1) / total_images)
+                
+                # Custom headers to avoid blocking
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.google.com",
+                    "DNT": "1",
+                    "Connection": "keep-alive",
+                }
+                
+                # محاولة تحميل الصورة مع إعادة المحاولة
+                max_retries = 3
+                current_try = 0
+                success = False
+                
+                while current_try < max_retries and not success:
+                    try:
+                        current_try += 1
+                        # زيادة وقت الانتظار إلى 30 ثانية
+                        response = requests.get(url, headers=headers, timeout=30)
+                        success = True
+                    except requests.exceptions.Timeout:
+                        if current_try < max_retries:
+                            st.warning(f"⏱️ انتهت مهلة الاتصال للصورة {i+1}، جاري إعادة المحاولة ({current_try}/{max_retries})...")
+                        else:
+                            raise
+                    except requests.exceptions.ConnectionError:
+                        if current_try < max_retries:
+                            st.warning(f"🔌 خطأ في الاتصال للصورة {i+1}، جاري إعادة المحاولة ({current_try}/{max_retries})...")
+                        else:
+                            raise
+                
+                if success and response.status_code == 200:
+                    # Open and convert image
+                    image = Image.open(BytesIO(response.content)).convert("RGB")
+                    
+                    # Display image
+                    st.image(image, caption=f"الصورة رقم {i+1}", use_column_width=True)
+                    
+                    # Prepare download button
+                    img_buffer = BytesIO()
+                    image.save(img_buffer, format="JPEG")
+                    img_buffer.seek(0)
+                    
+                    # Add download button
+                    st.download_button(
+                        label=f"📸 تحميل الصورة {i+1} كـ JPG",
+                        data=img_buffer,
+                        file_name=f"image_{i+1}.jpg",
+                        mime="image/jpeg"
+                    )
+                else:
+                    st.error(f"❌ فشل تحميل الصورة {i+1} - الحالة: {response.status_code}")
+            except requests.exceptions.Timeout:
+                st.error(f"⏱️ انتهت مهلة الاتصال نهائيًا عند محاولة تحميل الصورة رقم {i+1}")
+            except requests.exceptions.ConnectionError:
+                st.error(f"🔌 تعذر الاتصال بالخادم عند محاولة تحميل الصورة رقم {i+1}")
+            except requests.exceptions.RequestException:
+                st.error(f"🌐 حدث خطأ في طلب الإنترنت للصورة رقم {i+1}")
+            except Exception as e:
+                st.error(f"⚠️ خطأ غير متوقع في تحميل الصورة رقم {i+1}: {e}")
+        
+        # Clear progress bar when done
+        progress_bar.empty()
